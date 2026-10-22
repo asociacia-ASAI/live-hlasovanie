@@ -53,3 +53,10 @@ Bez `SHEET_ID` web ukazuje ukážkové dáta – dobré na otestovanie, že nasa
 Tabuľka je čitateľná pre každého, kto pozná jej odkaz. ID je uložené len vo Verceli
 (na webe sa nezobrazuje), ale do formulára nezbieraj mená, e-maily ani iné osobné údaje.
 Po akcii môžeš zdieľanie tabuľky vypnúť.
+
+## Režim prezentácie
+
+Klikni na ktorúkoľvek otázku a zobrazí sa cez celú obrazovku.
+Šípkami ← → prepínaš otázky, klávesom Esc (alebo klikom) sa vrátiš na prehľad.
+Stupnice (1–5, 1–10) sa zobrazia ako stĺpce s priemerom, ostatné otázky ako pruhy,
+pričom vedúca odpoveď je zvýraznená oranžovou.

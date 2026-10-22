@@ -5,74 +5,161 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Live hlasovanie</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link rel="icon" href="img/asai-icon-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+  /* ASAI Design System – farby, písmo, zaoblenia */
   :root {
-    --bg: #0f1220; --panel: #181c30; --text: #f2f3f8; --muted: #9aa0b8;
-    --accent: #7c5cff; --accent2: #22d3ee; --track: #262b45; --new: #34d399;
+    --asai-orange: #ffb101; --asai-orange-dark: #e69c00;
+    --asai-navy: #0a0747; --asai-navy-light: #141064;
+    --asai-teal: #18e8cb; --asai-cream: #fff8ed; --asai-white: #ffffff;
+    --text: var(--asai-white); --muted: rgba(255,255,255,.72);
+    --track: rgba(255,255,255,.10);
+    --glass-bg: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.05));
+    --glass-border: 1px solid rgba(255,255,255,.28);
+    --radius-md: 16px; --radius-lg: 28px; --radius-pill: 999px;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .wrap { max-width: 1400px; margin: 0 auto; padding: 24px 16px 48px; }
-  header { display: flex; gap: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 24px; }
-  h1 { font-size: clamp(26px, 4vw, 44px); margin: 0 0 6px; letter-spacing: -0.02em; }
-  .status { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 8px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--new); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 2s infinite; }
-  .dot.off { background: #f87171; animation: none; }
-  @keyframes pulse { 70% { box-shadow: 0 0 0 10px rgba(52,211,153,0); } 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } }
-  .side { display: flex; gap: 20px; align-items: center; }
-  .total { text-align: center; background: var(--panel); border-radius: 16px; padding: 14px 22px; }
-  .total b { display: block; font-size: 52px; line-height: 1; font-variant-numeric: tabular-nums; }
-  .total span { color: var(--muted); font-size: 13px; }
+  html, body { background: var(--asai-navy); }
+  body { margin: 0; color: var(--text); min-height: 100vh; overflow-x: hidden;
+         font: 500 16px/1.45 "Montserrat", system-ui, sans-serif; position: relative; }
+  /* Molekulový motív v rohoch */
+  .motif { position: fixed; pointer-events: none; z-index: 0; opacity: .9; }
+  .motif.br { right: -40px; bottom: -60px; width: 220px; }
+  .motif.tl { left: -30px; top: -30px; width: 170px; transform: rotate(180deg); opacity: .5; }
+  .wrap { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 28px 16px 64px; }
+  header { display: flex; gap: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 28px; }
+  .brand { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+  .brand img { height: 74px; width: auto; display: block; }
+  .brand .sep { width: 2px; height: 58px; background: rgba(255,255,255,.18); border-radius: 2px; }
+  h1 { font-size: clamp(24px, 3.4vw, 42px); font-weight: 900; text-transform: uppercase; letter-spacing: .01em;
+       margin: 0 0 10px; line-height: 1.05; }
+  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted);
+            background: var(--glass-bg); border: var(--glass-border); border-radius: var(--radius-pill); padding: 6px 14px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--asai-teal);
+         box-shadow: 0 0 0 0 rgba(24,232,203,.6); animation: pulse 2s infinite; }
+  .dot.off { background: #ff7a6b; animation: none; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 10px rgba(24,232,203,0); } 100% { box-shadow: 0 0 0 0 rgba(24,232,203,0); } }
+  .side { display: flex; gap: 18px; align-items: stretch; }
+  .total { text-align: center; background: var(--asai-orange); color: var(--asai-navy); border-radius: var(--radius-lg);
+           padding: 16px 26px; display: flex; flex-direction: column; justify-content: center; min-width: 150px; }
+  .total b { display: block; font-size: 60px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+  .total span { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-top: 6px; }
   .total.bump b { animation: bump .6s ease; }
-  @keyframes bump { 30% { transform: scale(1.18); color: var(--new); } }
-  .qr { background: #fff; padding: 10px; border-radius: 12px; cursor: zoom-in; }
-  .qr img, .qr canvas { display: block; width: 120px !important; height: 120px !important; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; }
-  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
-  .card { background: var(--panel); border-radius: 18px; padding: 20px 22px; }
-  .card h2 { font-size: 20px; margin: 0 0 4px; }
-  .card .meta { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
-  .row { margin: 10px 0; }
-  .row .lbl { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; margin-bottom: 5px; }
-  .row .lbl em { font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .bar { height: 14px; background: var(--track); border-radius: 8px; overflow: hidden; }
-  .bar i { display: block; height: 100%; width: 0; border-radius: 8px;
-           background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .8s cubic-bezier(.2,.8,.2,1); }
-  .row.top .lbl span { font-weight: 700; }
+  @keyframes bump { 30% { transform: scale(1.2); } }
+  .qr { background: var(--asai-white); padding: 10px; border-radius: var(--radius-md); cursor: zoom-in;
+        display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .qr img, .qr canvas { display: block; width: 116px !important; height: 116px !important; }
+  .qr small { color: var(--asai-navy); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 22px; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } .brand img { height: 54px; } .brand .sep { display: none; } }
+  .card { background: var(--asai-navy-light); border-radius: var(--radius-lg); padding: 24px 26px; }
+  .card h2 { font-size: 19px; font-weight: 800; text-transform: uppercase; line-height: 1.2; margin: 0 0 6px; }
+  .card .meta { display: inline-block; color: var(--asai-teal); font-size: 12px; font-weight: 700;
+                text-transform: uppercase; letter-spacing: .06em; margin-bottom: 16px; }
+  .row { margin: 12px 0; }
+  .row .lbl { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; margin-bottom: 6px; }
+  .row .lbl em { font-style: normal; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bar { height: 16px; background: var(--track); border-radius: var(--radius-pill); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; border-radius: var(--radius-pill); background: var(--asai-orange);
+           transition: width .8s cubic-bezier(.4,0,.2,1); }
+  .row.top .lbl span { font-weight: 800; }
+  .row.top .lbl em { color: var(--asai-orange); }
   .texts { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto; }
-  .texts li { background: var(--track); border-radius: 10px; padding: 8px 12px; margin: 6px 0; font-size: 15px; }
+  .texts li { background: var(--asai-cream); color: var(--asai-navy); border-radius: var(--radius-md);
+              padding: 10px 16px; margin: 8px 0; font-size: 15px; font-weight: 600; }
   .texts li.fresh { animation: fresh 2.5s ease; }
-  @keyframes fresh { 0% { background: rgba(52,211,153,.35); } 100% { background: var(--track); } }
-  .note { background: #3b2f12; color: #fde68a; border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; font-size: 14px; }
-  .err { background: #3b1717; color: #fecaca; }
-  .empty { color: var(--muted); text-align: center; padding: 60px 0; font-size: 18px; }
+  @keyframes fresh { 0% { background: var(--asai-teal); } 100% { background: var(--asai-cream); } }
+  .note { background: var(--glass-bg); border: var(--glass-border); border-radius: var(--radius-pill);
+          padding: 10px 20px; margin-bottom: 22px; font-size: 14px; font-weight: 600; }
+  .err { border-color: #ff7a6b; color: #ffd9d4; }
+  .empty { color: var(--muted); text-align: center; padding: 70px 0; font-size: 20px; font-weight: 700; text-transform: uppercase; }
   /* Veľký QR na celú obrazovku – na premietanie */
-  #bigqr { position: fixed; inset: 0; background: rgba(10,12,22,.96); display: none; flex-direction: column;
-           align-items: center; justify-content: center; gap: 20px; cursor: zoom-out; z-index: 10; }
+  #bigqr { position: fixed; inset: 0; background: var(--asai-navy); display: none; flex-direction: column;
+           align-items: center; justify-content: center; gap: 24px; cursor: zoom-out; z-index: 10; }
   #bigqr.on { display: flex; }
-  #bigqr .box { background: #fff; padding: 24px; border-radius: 20px; }
-  #bigqr .box img, #bigqr .box canvas { width: min(70vh, 80vw) !important; height: min(70vh, 80vw) !important; }
-  #bigqr p { color: var(--text); font-size: 24px; margin: 0; }
+  #bigqr .box { background: var(--asai-white); padding: 24px; border-radius: var(--radius-lg); }
+  #bigqr .box img, #bigqr .box canvas { width: min(64vh, 80vw) !important; height: min(64vh, 80vw) !important; }
+  #bigqr p { margin: 0; background: var(--asai-orange); color: var(--asai-navy); font-size: clamp(20px, 3vw, 32px);
+             font-weight: 900; text-transform: uppercase; padding: 12px 36px; border-radius: var(--radius-pill); }
+  #bigqr .logo { position: absolute; top: 24px; left: 28px; height: 64px; }
+  /* Hlavička karty: otázka + súhrnný údaj */
+  .card { cursor: zoom-in; transition: transform .2s cubic-bezier(.4,0,.2,1); }
+  .card:hover { transform: translateY(-2px); }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .kpi { flex: none; text-align: right; background: var(--asai-orange); color: var(--asai-navy);
+         border-radius: var(--radius-md); padding: 8px 14px; min-width: 84px; }
+  .kpi:empty { display: none; }
+  .kpi b { display: block; font-size: 30px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+  .kpi small { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+  .kpi.lead b { font-size: 16px; line-height: 1.2; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Pruhový graf */
+  .hb { display: grid; gap: 10px; }
+  .hrow { position: relative; height: 46px; background: var(--track); border-radius: var(--radius-pill); overflow: hidden; }
+  .hrow i { position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(255,248,237,.28);
+            border-radius: var(--radius-pill); transition: width .8s cubic-bezier(.4,0,.2,1); }
+  .hrow.top i { background: var(--asai-orange); }
+  .hrow .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+             gap: 12px; padding: 0 18px; font-size: 16px; font-weight: 700; }
+  .hrow .t span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hrow .t em { font-style: normal; font-weight: 900; font-size: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hrow .t em small { font-size: 12px; font-weight: 700; opacity: .75; margin-left: 6px; }
+  .hrow.top .t { color: var(--asai-navy); }
+  .hrow.top .t em small { opacity: .8; }
+  /* Stĺpcový graf pre stupnice */
+  .cols { display: flex; align-items: flex-end; gap: 10px; height: 230px; padding-top: 28px; }
+  .col { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .col .area { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 8px; min-height: 0; }
+  .col .v { font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .col .v small { display: block; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+  .col .c { width: 100%; max-width: 90px; height: 0; min-height: 4px; background: rgba(255,248,237,.28);
+            border-radius: 14px 14px 6px 6px; transition: height .8s cubic-bezier(.4,0,.2,1); }
+  .col.top .c { background: var(--asai-orange); }
+  .col .x { font-size: 16px; font-weight: 800; color: var(--asai-teal); }
+  /* Režim prezentácie – jedna otázka na celú obrazovku */
+  body.focus .wrap > header, body.focus #notice { display: none; }
+  body.focus .grid { display: block; }
+  body.focus .card { display: none; cursor: zoom-out; transform: none; }
+  body.focus .card.on { display: block; min-height: calc(100vh - 92px); padding: 40px 48px; }
+  body.focus .card.on h2 { font-size: clamp(26px, 3.6vw, 48px); }
+  body.focus .card.on .meta { font-size: 15px; margin-bottom: 32px; }
+  body.focus .card.on .kpi { padding: 14px 22px; } body.focus .card.on .kpi b { font-size: 48px; }
+  body.focus .card.on .kpi.lead b { font-size: 26px; max-width: 360px; }
+  body.focus .card.on .hb { gap: 16px; } body.focus .card.on .hrow { height: 72px; }
+  body.focus .card.on .hrow .t { font-size: 24px; padding: 0 28px; } body.focus .card.on .hrow .t em { font-size: 32px; }
+  body.focus .card.on .cols { height: calc(100vh - 380px); min-height: 260px; }
+  body.focus .card.on .col .v { font-size: 30px; } body.focus .card.on .col .x { font-size: 26px; }
+  body.focus .card.on .texts { max-height: calc(100vh - 300px); } body.focus .card.on .texts li { font-size: 22px; }
+  .hint { display: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 5;
+          background: var(--glass-bg); border: var(--glass-border); border-radius: var(--radius-pill);
+          padding: 6px 16px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  body.focus .hint { display: block; }
 </style>
 </head>
 <body>
+<img class="motif br" src="img/node-motif-corner-large.png" alt="">
 <div class="wrap">
   <header>
-    <div>
-      <h1 id="title">Výsledky hlasovania</h1>
-      <div class="status"><span class="dot" id="dot"></span><span id="status">Pripájam sa…</span></div>
+    <div class="brand">
+      <img src="img/asai-logo-full.png" alt="ASAI – Asociácia AI">
+      <span class="sep"></span>
+      <div>
+        <h1 id="title">Výsledky hlasovania</h1>
+        <div class="status"><span class="dot" id="dot"></span><span id="status">Pripájam sa…</span></div>
+      </div>
     </div>
     <div class="side">
       <div class="total" id="totalBox"><b id="total">0</b><span>odpovedí</span></div>
-      <div class="qr" id="qr" title="Klikni pre veľký QR kód"></div>
+      <div class="qr" id="qrWrap" title="Klikni pre veľký QR kód"><div id="qr"></div><small>Hlasujte</small></div>
     </div>
   </header>
   <div id="notice"></div>
   <div class="grid" id="grid"></div>
 </div>
 
-<div id="bigqr"><div class="box" id="qrBig"></div><p>Naskenuj a hlasuj</p></div>
+<div class="hint">← → ďalšia otázka · Esc alebo klik späť na prehľad</div>
+<div id="bigqr"><img class="logo" src="img/asai-logo-full.png" alt=""><div class="box" id="qrBig"></div><p>Naskenujte a hlasujte</p></div>
 
 <script>
 const REFRESH_MS = 3000;
@@ -87,7 +174,7 @@ function makeQr(url) {
   new QRCode($("qrBig"), { text: url, width: 800, height: 800, correctLevel: QRCode.CorrectLevel.M });
   qrDone = true;
 }
-$("qr").onclick = () => $("bigqr").classList.add("on");
+$("qrWrap").onclick = () => $("bigqr").classList.add("on");
 $("bigqr").onclick = () => $("bigqr").classList.remove("on");
 
 function cardFor(q, i) {
@@ -95,34 +182,89 @@ function cardFor(q, i) {
   if (!card) {
     card = document.createElement("div");
     card.className = "card"; card.dataset.q = i;
-    card.innerHTML = `<h2></h2><div class="meta"></div><div class="body"></div>`;
+    card.innerHTML = `<div class="head"><div><h2></h2><div class="meta"></div></div><div class="kpi"></div></div><div class="body"></div>`;
+    card.onclick = () => toggleFocus(i);
     $("grid").appendChild(card);
   }
   return card;
 }
 
-function renderChoice(body, q) {
-  const max = Math.max(1, ...q.options.map((o) => o.count));
-  const base = q.type === "multi" ? Math.max(1, q.answered) : Math.max(1, q.options.reduce((s, o) => s + o.count, 0));
-  const top = Math.max(...q.options.map((o) => o.count));
-  // Zachováme existujúce riadky, aby sa pruhy plynulo animovali
-  const existing = new Map([...body.querySelectorAll(".row")].map((r) => [r.dataset.l, r]));
+const fmt = (x, d = 1) => x.toLocaleString("sk-SK", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+// Je to stupnica (1–5, 1–10, 0–10 …)? Doplníme aj hodnoty, za ktoré zatiaľ nikto nehlasoval.
+function asScale(q) {
+  if (q.type !== "choice" || !q.options.length) return null;
+  const nums = q.options.map((o) => Number(o.label));
+  if (!nums.every((n) => Number.isInteger(n) && n >= 0 && n <= 10)) return null;
+  const lo = Math.min(1, ...nums), hi = Math.max(5, ...nums);
+  if (hi - lo > 10) return null;
+  const by = new Map(q.options.map((o) => [Number(o.label), o.count]));
+  const opts = [];
+  for (let v = lo; v <= hi; v++) opts.push({ label: String(v), count: by.get(v) || 0 });
+  const n = opts.reduce((s, o) => s + o.count, 0);
+  const avg = n ? opts.reduce((s, o) => s + Number(o.label) * o.count, 0) / n : 0;
+  return { opts, avg, hi };
+}
+
+function setKpi(card, html, cls = "") {
+  const k = card.querySelector(".kpi");
+  k.className = "kpi " + cls; k.innerHTML = html;
+}
+
+// Spoločná logika: zachová existujúce prvky, aby sa grafy plynulo animovali
+function upsert(container, key, make) {
+  let el = [...container.children].find((c) => c.dataset.l === key);
+  if (!el) { el = make(); el.dataset.l = key; }
+  container.appendChild(el);
+  return el;
+}
+
+function renderScale(card, body, sc) {
+  let wrap = body.querySelector(".cols");
+  if (!wrap) { body.innerHTML = ""; wrap = document.createElement("div"); wrap.className = "cols"; body.appendChild(wrap); }
+  const max = Math.max(1, ...sc.opts.map((o) => o.count));
+  const total = Math.max(1, sc.opts.reduce((s, o) => s + o.count, 0));
   const keep = new Set();
-  q.options.forEach((o) => {
-    let row = existing.get(o.label);
-    if (!row) {
-      row = document.createElement("div");
-      row.className = "row"; row.dataset.l = o.label;
-      row.innerHTML = `<div class="lbl"><span>${esc(o.label)}</span><em></em></div><div class="bar"><i></i></div>`;
-    }
-    body.appendChild(row); // aj zoradenie
-    const pct = Math.round((o.count / base) * 100);
-    row.querySelector("em").textContent = `${o.count} · ${pct} %`;
-    row.classList.toggle("top", o.count === top && top > 0);
-    requestAnimationFrame(() => (row.querySelector("i").style.width = `${(o.count / max) * 100}%`));
+  sc.opts.forEach((o) => {
+    const col = upsert(wrap, o.label, () => {
+      const d = document.createElement("div"); d.className = "col";
+      d.innerHTML = `<div class="area"><div class="v"></div><div class="c"></div></div><div class="x">${esc(o.label)}</div>`; return d;
+    });
+    col.querySelector(".v").innerHTML = `${o.count}<small>${Math.round((o.count / total) * 100)} %</small>`;
+    col.classList.toggle("top", o.count === max && o.count > 0);
+    requestAnimationFrame(() => (col.querySelector(".c").style.height = `${(o.count / max) * 78}%`));
     keep.add(o.label);
   });
-  existing.forEach((r, l) => { if (!keep.has(l)) r.remove(); });
+  [...wrap.children].forEach((c) => { if (!keep.has(c.dataset.l)) c.remove(); });
+  setKpi(card, `<b>${fmt(sc.avg)}</b><small>priemer z ${sc.hi}</small>`);
+}
+
+function renderBars(card, body, q) {
+  let wrap = body.querySelector(".hb");
+  if (!wrap) { body.innerHTML = ""; wrap = document.createElement("div"); wrap.className = "hb"; body.appendChild(wrap); }
+  const max = Math.max(1, ...q.options.map((o) => o.count));
+  // jedna možnosť: % zo všetkých hlasov; viac možností: % respondentov, ktorí ju zaškrtli
+  const base = q.type === "multi" ? Math.max(1, q.answered) : Math.max(1, q.options.reduce((s, o) => s + o.count, 0));
+  const keep = new Set();
+  q.options.forEach((o) => {
+    const row = upsert(wrap, o.label, () => {
+      const d = document.createElement("div"); d.className = "hrow";
+      d.innerHTML = `<i></i><div class="t"><span>${esc(o.label)}</span><em></em></div>`; return d;
+    });
+    row.querySelector("em").innerHTML = `${Math.round((o.count / base) * 100)} %<small>${o.count}</small>`;
+    row.classList.toggle("top", o.count === max && o.count > 0);
+    requestAnimationFrame(() => (row.querySelector("i").style.width = `${Math.max(o.count ? 3 : 0, (o.count / max) * 100)}%`));
+    keep.add(o.label);
+  });
+  [...wrap.children].forEach((c) => { if (!keep.has(c.dataset.l)) c.remove(); });
+  const leaders = q.options.filter((o) => o.count === max && o.count > 0);
+  if (leaders.length === 1) setKpi(card, `<small>vedie</small><b>${esc(leaders[0].label)}</b>`, "lead");
+  else setKpi(card, "");
+}
+
+function renderChoice(card, body, q) {
+  const sc = asScale(q);
+  if (sc) renderScale(card, body, sc); else renderBars(card, body, q);
 }
 
 function renderText(body, q, i) {
@@ -153,7 +295,7 @@ function render(d) {
   lastTotal = d.total;
 
   if (!d.questions.length && !d.error) {
-    $("grid").innerHTML = `<div class="empty">Zatiaľ žiadne odpovede. Naskenujte QR kód 👆</div>`;
+    $("grid").innerHTML = `<div class="empty">Zatiaľ žiadne odpovede – naskenujte QR kód</div>`;
     return;
   }
   $("grid").querySelector(".empty")?.remove();
@@ -163,10 +305,32 @@ function render(d) {
     card.querySelector(".meta").textContent =
       `${q.answered} odpovedí` + (q.type === "multi" ? " · viac možností naraz" : "");
     const body = card.querySelector(".body");
-    if (q.type === "text") renderText(body, q, i); else renderChoice(body, q);
+    if (q.type === "text") { setKpi(card, ""); renderText(body, q, i); } else renderChoice(card, body, q);
   });
   [...$("grid").querySelectorAll(".card")].forEach((c) => { if (+c.dataset.q >= d.questions.length) c.remove(); });
 }
+
+let focusIdx = null;
+function toggleFocus(i) {
+  focusIdx = focusIdx === i ? null : i;
+  applyFocus();
+}
+function applyFocus() {
+  const cards = [...$("grid").querySelectorAll(".card")];
+  if (focusIdx !== null && focusIdx >= cards.length) focusIdx = null;
+  document.body.classList.toggle("focus", focusIdx !== null);
+  cards.forEach((c) => c.classList.toggle("on", +c.dataset.q === focusIdx));
+  window.scrollTo(0, 0);
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { focusIdx = null; applyFocus(); $("bigqr").classList.remove("on"); return; }
+  const n = $("grid").querySelectorAll(".card").length;
+  if (focusIdx === null || !n) return;
+  if (e.key === "ArrowRight" || e.key === " ") focusIdx = (focusIdx + 1) % n;
+  else if (e.key === "ArrowLeft") focusIdx = (focusIdx - 1 + n) % n;
+  else return;
+  e.preventDefault(); applyFocus();
+});
 
 async function tick() {
   try {

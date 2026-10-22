@@ -78,6 +78,7 @@ function demoData() {
     total: n,
     questions: [
       { title: "Ako sa vám páčila prednáška? (ukážka)", type: "choice", answered: n, options: pick(["5", "4", "3", "2", "1"]).sort((a, b) => Number(a.label) - Number(b.label)) },
+      { title: "Používate AI pri učení? (ukážka)", type: "choice", answered: n, options: pick(["Denne", "Raz za týždeň", "Občas", "Nikdy"]) },
       { title: "Ktoré AI nástroje používate? (ukážka)", type: "multi", answered: n, options: pick(["ChatGPT", "Claude", "Gemini", "Copilot", "Iné"]) },
       { title: "Čo si odnášate? (ukážka)", type: "text", answered: 3, answers: ["Že AI nie je strašiak", "Veľa praktických tipov", "Chcem skúsiť vlastného agenta"] },
     ],
