@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live hlasovanie</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1220; --panel: #181c30; --text: #f2f3f8; --muted: #9aa0b8;
+    --accent: #7c5cff; --accent2: #22d3ee; --track: #262b45; --new: #34d399;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; gap: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 24px; }
+  h1 { font-size: clamp(26px, 4vw, 44px); margin: 0 0 6px; letter-spacing: -0.02em; }
+  .status { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--new); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 2s infinite; }
+  .dot.off { background: #f87171; animation: none; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 10px rgba(52,211,153,0); } 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } }
+  .side { display: flex; gap: 20px; align-items: center; }
+  .total { text-align: center; background: var(--panel); border-radius: 16px; padding: 14px 22px; }
+  .total b { display: block; font-size: 52px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .total span { color: var(--muted); font-size: 13px; }
+  .total.bump b { animation: bump .6s ease; }
+  @keyframes bump { 30% { transform: scale(1.18); color: var(--new); } }
+  .qr { background: #fff; padding: 10px; border-radius: 12px; cursor: zoom-in; }
+  .qr img, .qr canvas { display: block; width: 120px !important; height: 120px !important; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border-radius: 18px; padding: 20px 22px; }
+  .card h2 { font-size: 20px; margin: 0 0 4px; }
+  .card .meta { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .row { margin: 10px 0; }
+  .row .lbl { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; margin-bottom: 5px; }
+  .row .lbl em { font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bar { height: 14px; background: var(--track); border-radius: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; border-radius: 8px;
+           background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+  .row.top .lbl span { font-weight: 700; }
+  .texts { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto; }
+  .texts li { background: var(--track); border-radius: 10px; padding: 8px 12px; margin: 6px 0; font-size: 15px; }
+  .texts li.fresh { animation: fresh 2.5s ease; }
+  @keyframes fresh { 0% { background: rgba(52,211,153,.35); } 100% { background: var(--track); } }
+  .note { background: #3b2f12; color: #fde68a; border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; font-size: 14px; }
+  .err { background: #3b1717; color: #fecaca; }
+  .empty { color: var(--muted); text-align: center; padding: 60px 0; font-size: 18px; }
+  /* Veľký QR na celú obrazovku – na premietanie */
+  #bigqr { position: fixed; inset: 0; background: rgba(10,12,22,.96); display: none; flex-direction: column;
+           align-items: center; justify-content: center; gap: 20px; cursor: zoom-out; z-index: 10; }
+  #bigqr.on { display: flex; }
+  #bigqr .box { background: #fff; padding: 24px; border-radius: 20px; }
+  #bigqr .box img, #bigqr .box canvas { width: min(70vh, 80vw) !important; height: min(70vh, 80vw) !important; }
+  #bigqr p { color: var(--text); font-size: 24px; margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="title">Výsledky hlasovania</h1>
+      <div class="status"><span class="dot" id="dot"></span><span id="status">Pripájam sa…</span></div>
+    </div>
+    <div class="side">
+      <div class="total" id="totalBox"><b id="total">0</b><span>odpovedí</span></div>
+      <div class="qr" id="qr" title="Klikni pre veľký QR kód"></div>
+    </div>
+  </header>
+  <div id="notice"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div id="bigqr"><div class="box" id="qrBig"></div><p>Naskenuj a hlasuj</p></div>
+
+<script>
+const REFRESH_MS = 3000;
+let lastTotal = null, qrDone = false, seenTexts = new Set();
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function makeQr(url) {
+  if (qrDone || !url || typeof QRCode === "undefined") return;
+  new QRCode($("qr"), { text: url, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });
+  new QRCode($("qrBig"), { text: url, width: 800, height: 800, correctLevel: QRCode.CorrectLevel.M });
+  qrDone = true;
+}
+$("qr").onclick = () => $("bigqr").classList.add("on");
+$("bigqr").onclick = () => $("bigqr").classList.remove("on");
+
+function cardFor(q, i) {
+  let card = document.querySelector(`[data-q="${i}"]`);
+  if (!card) {
+    card = document.createElement("div");
+    card.className = "card"; card.dataset.q = i;
+    card.innerHTML = `<h2></h2><div class="meta"></div><div class="body"></div>`;
+    $("grid").appendChild(card);
+  }
+  return card;
+}
+
+function renderChoice(body, q) {
+  const max = Math.max(1, ...q.options.map((o) => o.count));
+  const base = q.type === "multi" ? Math.max(1, q.answered) : Math.max(1, q.options.reduce((s, o) => s + o.count, 0));
+  const top = Math.max(...q.options.map((o) => o.count));
+  // Zachováme existujúce riadky, aby sa pruhy plynulo animovali
+  const existing = new Map([...body.querySelectorAll(".row")].map((r) => [r.dataset.l, r]));
+  const keep = new Set();
+  q.options.forEach((o) => {
+    let row = existing.get(o.label);
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "row"; row.dataset.l = o.label;
+      row.innerHTML = `<div class="lbl"><span>${esc(o.label)}</span><em></em></div><div class="bar"><i></i></div>`;
+    }
+    body.appendChild(row); // aj zoradenie
+    const pct = Math.round((o.count / base) * 100);
+    row.querySelector("em").textContent = `${o.count} · ${pct} %`;
+    row.classList.toggle("top", o.count === top && top > 0);
+    requestAnimationFrame(() => (row.querySelector("i").style.width = `${(o.count / max) * 100}%`));
+    keep.add(o.label);
+  });
+  existing.forEach((r, l) => { if (!keep.has(l)) r.remove(); });
+}
+
+function renderText(body, q, i) {
+  let ul = body.querySelector("ul");
+  if (!ul) { ul = document.createElement("ul"); ul.className = "texts"; body.appendChild(ul); }
+  ul.innerHTML = q.answers.map((a) => {
+    const key = i + "|" + a;
+    const fresh = lastTotal !== null && !seenTexts.has(key);
+    seenTexts.add(key);
+    return `<li class="${fresh ? "fresh" : ""}">${esc(a)}</li>`;
+  }).join("");
+}
+
+function render(d) {
+  $("title").textContent = d.title || "Výsledky hlasovania";
+  document.title = d.title || "Live hlasovanie";
+  makeQr(d.formUrl);
+
+  const n = $("notice");
+  if (d.error) n.innerHTML = `<div class="note err">⚠️ ${esc(d.error)}</div>`;
+  else if (d.demo) n.innerHTML = `<div class="note">Toto sú ukážkové dáta. Po nastavení SHEET_ID vo Verceli sa tu objavia skutočné odpovede.</div>`;
+  else n.innerHTML = "";
+
+  if (lastTotal !== null && d.total > lastTotal) {
+    $("totalBox").classList.remove("bump"); void $("totalBox").offsetWidth; $("totalBox").classList.add("bump");
+  }
+  $("total").textContent = d.total;
+  lastTotal = d.total;
+
+  if (!d.questions.length && !d.error) {
+    $("grid").innerHTML = `<div class="empty">Zatiaľ žiadne odpovede. Naskenujte QR kód 👆</div>`;
+    return;
+  }
+  $("grid").querySelector(".empty")?.remove();
+  d.questions.forEach((q, i) => {
+    const card = cardFor(q, i);
+    card.querySelector("h2").textContent = q.title;
+    card.querySelector(".meta").textContent =
+      `${q.answered} odpovedí` + (q.type === "multi" ? " · viac možností naraz" : "");
+    const body = card.querySelector(".body");
+    if (q.type === "text") renderText(body, q, i); else renderChoice(body, q);
+  });
+  [...$("grid").querySelectorAll(".card")].forEach((c) => { if (+c.dataset.q >= d.questions.length) c.remove(); });
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/results?t=" + Date.now(), { cache: "no-store" });
+    const d = await r.json();
+    render(d);
+    $("dot").classList.remove("off");
+    $("status").textContent = "Live · aktualizované " + new Date().toLocaleTimeString("sk-SK");
+  } catch (e) {
+    $("dot").classList.add("off");
+    $("status").textContent = "Spojenie prerušené, skúšam znova…";
+  } finally {
+    setTimeout(tick, document.hidden ? REFRESH_MS * 4 : REFRESH_MS);
+  }
+}
+tick();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "live-hlasovanie",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live výsledky Google Formulára na Verceli",
+  "engines": { "node": ">=18" }
+}
