@@ -60,3 +60,10 @@ Klikni na ktorúkoľvek otázku a zobrazí sa cez celú obrazovku.
 Šípkami ← → prepínaš otázky, klávesom Esc (alebo klikom) sa vrátiš na prehľad.
 Stupnice (1–5, 1–10) sa zobrazia ako stĺpce s priemerom, ostatné otázky ako pruhy,
 pričom vedúca odpoveď je zvýraznená oranžovou.
+
+## Pódium (1., 2., 3. miesto)
+
+Otázky, ktorých text obsahuje slovo „najčastejšie“, sa zobrazia ako stupne víťazov
+(1. miesto v strede, 2. vľavo, 3. vpravo, ďalšie miesta pod pódiom).
+Ak chceš pódium pri inej otázke, pridaj vo Verceli premennú `PODIUM` s časťou textu
+otázky (viac otázok oddeľ čiarkou), napr. `najčastejšie,obľúbený`.

@@ -4,6 +4,8 @@
 //   SHEET_NAME – (nepovinné) názov hárku, ak nie je prvý v poradí
 //   FORM_URL   – odkaz na vyplnenie formulára (z neho sa robí QR kód)
 //   TITLE      – (nepovinné) nadpis na stránke
+//   PODIUM     – (nepovinné) časť textu otázky, ktorá sa má zobraziť ako pódium 1.–3. miesto
+//                (viac otázok oddeľ čiarkou; predvolene "najčastejšie")
 
 const MAX_CHOICES = 12;      // do koľkých rôznych odpovedí berieme otázku ako "výber"
 const MAX_TEXT_SHOWN = 30;   // koľko posledných textových odpovedí zobraziť
@@ -28,6 +30,19 @@ function sortOptions(map) {
   if (allNumeric) entries.sort((a, b) => Number(a[0]) - Number(b[0])); // stupnice 1–5 a pod.
   else entries.sort((a, b) => b[1] - a[1]);
   return entries.map(([label, count]) => ({ label, count }));
+}
+
+function podiumMatchers() {
+  return (process.env.PODIUM || "najčastejšie,najcastejsie")
+    .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+}
+
+function markPodium(questions) {
+  const m = podiumMatchers();
+  questions.forEach((q) => {
+    if (q.type !== "text" && m.some((x) => q.title.toLowerCase().includes(x))) q.podium = true;
+  });
+  return questions;
 }
 
 function analyze(cols, rows) {
@@ -79,6 +94,7 @@ function demoData() {
     questions: [
       { title: "Ako sa vám páčila prednáška? (ukážka)", type: "choice", answered: n, options: pick(["5", "4", "3", "2", "1"]).sort((a, b) => Number(a.label) - Number(b.label)) },
       { title: "Používate AI pri učení? (ukážka)", type: "choice", answered: n, options: pick(["Denne", "Raz za týždeň", "Občas", "Nikdy"]) },
+      { title: "Ktorý AI nástroj používate najčastejšie? (ukážka)", type: "choice", answered: n, podium: true, options: pick(["ChatGPT", "Claude", "Gemini", "Copilot", "Perplexity"]) },
       { title: "Ktoré AI nástroje používate? (ukážka)", type: "multi", answered: n, options: pick(["ChatGPT", "Claude", "Gemini", "Copilot", "Iné"]) },
       { title: "Čo si odnášate? (ukážka)", type: "text", answered: 3, answers: ["Že AI nie je strašiak", "Veľa praktických tipov", "Chcem skúsiť vlastného agenta"] },
     ],
@@ -110,7 +126,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       ...meta,
       total: rows.length,
-      questions: analyze(cols, rows),
+      questions: markPodium(analyze(cols, rows)),
       updatedAt: new Date().toISOString(),
     });
   } catch (e) {
