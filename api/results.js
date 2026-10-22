@@ -54,7 +54,15 @@ function analyzeColumn(label, answers) {
   // alebo časť kombinácie existuje aj ako samostatná odpoveď.
   const combos = [...single.keys()].filter((k) => k.includes(", "));
   const tokens = (a) => a.split(", ").map((s) => s.trim()).filter(Boolean);
-  const looksMulti = combos.length >= 2 || combos.some((c) => tokens(c).some((t) => single.has(t)));
+  // Pozor na odpovede, ktoré čiarku obsahujú samy ("Viem, ale nie vždy dodržiavam"):
+  // ak časť za čiarkou začína malým písmenom, ide o pokračovanie vety, nie o ďalšiu možnosť.
+  const continuesSentence = combos.some((c) => tokens(c).slice(1).some((t) => /^\p{Ll}/u.test(t)));
+  // Pri skutočných zaškrtávacích políčkach sa tá istá možnosť objaví vo viacerých odpovediach.
+  const seenIn = new Map();
+  [...single.keys()].forEach((k) => tokens(k).forEach((t) => seenIn.set(t, (seenIn.get(t) || 0) + 1)));
+  const tokenRepeats = [...seenIn.values()].some((n) => n >= 2);
+  const standalone = combos.some((c) => tokens(c).some((t) => single.has(t)));
+  const looksMulti = !continuesSentence && combos.length > 0 && (standalone || tokenRepeats);
   if (looksMulti) {
     const split = count(answers.flatMap(tokens));
     if (split.size <= MAX_CHOICES + 3) {
