@@ -93,6 +93,8 @@
   .kpi:empty { display: none; }
   .kpi b { display: block; font-size: 30px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
   .kpi small { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+  .head > div:first-child { flex: 1; min-width: 0; }
+  .kpi.lead { max-width: 42%; }
   .kpi.lead b { font-size: 16px; line-height: 1.2; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Pruhový graf */
   .hb { display: grid; gap: 10px; }
@@ -282,6 +284,7 @@ function renderBars(card, body, q) {
   else setKpi(card, "");
 }
 
+const body_ = (n) => n === 1 ? "1 bod" : (n >= 2 && n <= 4 ? `${n} body` : `${n} bodov`);
 const hlasy = (n) => n === 1 ? "1 hlas" : (n >= 2 && n <= 4 ? `${n} hlasy` : `${n} hlasov`);
 
 function renderPodium(card, body, q) {
@@ -299,11 +302,13 @@ function renderPodium(card, body, q) {
     st.classList.toggle("none", !o);
     if (!o) return;
     st.querySelector(".who").textContent = o.label;
-    st.querySelector(".num").textContent = `${hlasy(o.count)} · ${Math.round((o.count / base) * 100)} %`;
+    st.querySelector(".num").textContent = q.type === "ranking"
+      ? `${body_(o.count)}` + (o.firsts ? ` · ${o.firsts}× na 1. mieste` : "")
+      : `${hlasy(o.count)} · ${Math.round((o.count / base) * 100)} %`;
     st.querySelector(".blk").style.height = `calc(${heights[p]}% - 70px)`;
   });
   body.querySelector(".rest").innerHTML = sorted.slice(3)
-    .map((o, i) => `<span><b>${i + 4}.</b>${esc(o.label)} · ${o.count}</span>`).join("");
+    .map((o, i) => `<span><b>${i + 4}.</b>${esc(o.label)} · ${q.type === "ranking" ? body_(o.count) : o.count}</span>`).join("");
   setKpi(card, sorted[0] ? `<small>víťaz</small><b>${esc(sorted[0].label)}</b>` : "", "lead");
 }
 

@@ -63,7 +63,10 @@ pričom vedúca odpoveď je zvýraznená oranžovou.
 
 ## Pódium (1., 2., 3. miesto)
 
-Otázky, ktorých text obsahuje slovo „najčastejšie“, sa zobrazia ako stupne víťazov
-(1. miesto v strede, 2. vľavo, 3. vpravo, ďalšie miesta pod pódiom).
-Ak chceš pódium pri inej otázke, pridaj vo Verceli premennú `PODIUM` s časťou textu
-otázky (viac otázok oddeľ čiarkou), napr. `najčastejšie,obľúbený`.
+Ak je otázka vo formulári **mriežka s poradím** (riadky = možnosti, napr. ChatGPT, Claude…,
+stĺpce = 1. miesto, 2. miesto, 3. miesto), web ju spojí do jedného pódia.
+Body: 1. miesto = 3 body, 2. miesto = 2 body, 3. miesto = 1 bod. Vyhráva najviac bodov,
+pri rovnosti rozhoduje počet prvých miest. Ostatné možnosti sú pod pódiom.
+
+Ak chceš pódium aj pri bežnej otázke s výberom, pridaj vo Verceli premennú `PODIUM`
+s časťou textu otázky (viac otázok oddeľ čiarkou).

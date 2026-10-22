@@ -4,8 +4,9 @@
 //   SHEET_NAME – (nepovinné) názov hárku, ak nie je prvý v poradí
 //   FORM_URL   – odkaz na vyplnenie formulára (z neho sa robí QR kód)
 //   TITLE      – (nepovinné) nadpis na stránke
-//   PODIUM     – (nepovinné) časť textu otázky, ktorá sa má zobraziť ako pódium 1.–3. miesto
-//                (viac otázok oddeľ čiarkou; predvolene "najčastejšie")
+//   PODIUM     – (nepovinné) časť textu bežnej otázky, ktorá sa má zobraziť ako pódium
+//                (viac otázok oddeľ čiarkou). Mriežky s poradím (1. miesto, 2. miesto…)
+//                sa ako pódium zobrazia automaticky.
 
 const MAX_CHOICES = 12;      // do koľkých rôznych odpovedí berieme otázku ako "výber"
 const MAX_TEXT_SHOWN = 30;   // koľko posledných textových odpovedí zobraziť
@@ -33,7 +34,7 @@ function sortOptions(map) {
 }
 
 function podiumMatchers() {
-  return (process.env.PODIUM || "najčastejšie,najcastejsie")
+  return (process.env.PODIUM || "")
     .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
 }
 
@@ -45,42 +46,78 @@ function markPodium(questions) {
   return questions;
 }
 
+// Jeden stĺpec tabuľky → otázka (výber, zaškrtávanie alebo text)
+function analyzeColumn(label, answers) {
+  const single = count(answers);
+  // Zaškrtávacie políčka: Google ich ukladá ako "A, B, C".
+  // Za checkbox považujeme stĺpec, kde sa vyskytujú aspoň 2 rôzne kombinácie s čiarkou,
+  // alebo časť kombinácie existuje aj ako samostatná odpoveď.
+  const combos = [...single.keys()].filter((k) => k.includes(", "));
+  const tokens = (a) => a.split(", ").map((s) => s.trim()).filter(Boolean);
+  const looksMulti = combos.length >= 2 || combos.some((c) => tokens(c).some((t) => single.has(t)));
+  if (looksMulti) {
+    const split = count(answers.flatMap(tokens));
+    if (split.size <= MAX_CHOICES + 3) {
+      return { title: label, type: "multi", answered: answers.length, options: sortOptions(split) };
+    }
+  }
+  if (single.size <= MAX_CHOICES) {
+    return { title: label, type: "choice", answered: answers.length, options: sortOptions(single) };
+  }
+  return { title: label, type: "text", answered: answers.length, answers: answers.slice(-MAX_TEXT_SHOWN).reverse() };
+}
+
+// Poradie z hodnoty bunky: "1.miesto", "1. miesto", "1", "Miesto 2" → 1, 1, 1, 2
+const rankOf = (v) => { const m = String(v).match(/\d+/); return m ? Number(m[0]) : null; };
+
+// Mriežka s poradím → body: 1. miesto = najviac bodov (pri 3 miestach 3 / 2 / 1)
+function analyzeRanking(title, items, rows) {
+  const ranks = items.flatMap((it) => rows.map((r) => rankOf(cellValue(r.c?.[it.i]))).filter((x) => x));
+  const maxRank = Math.max(3, ...ranks);
+  const options = items.map((it) => {
+    let points = 0, firsts = 0, votes = 0;
+    rows.forEach((r) => {
+      const rk = rankOf(cellValue(r.c?.[it.i]));
+      if (!rk) return;
+      votes++; points += maxRank + 1 - rk; if (rk === 1) firsts++;
+    });
+    return { label: it.row, count: points, firsts, votes };
+  }).sort((a, b) => b.count - a.count || b.firsts - a.firsts);
+  const answered = rows.filter((r) => items.some((it) => cellValue(r.c?.[it.i]) !== "")).length;
+  return { title, type: "ranking", podium: true, answered, options };
+}
+
 function analyze(cols, rows) {
   // Prvý stĺpec je časová pečiatka formulára – ten nezobrazujeme ako otázku.
   const isTimestamp = (col, i) =>
     i === 0 && (col.type === "datetime" || /pečiatka|timestamp|čas|časové razítko/i.test(col.label || ""));
 
-  const questions = [];
+  // Mriežky: Google ich ukladá ako stĺpce "Otázka [Riadok]" – spojíme ich späť do jednej otázky.
+  const groups = [];
   cols.forEach((col, i) => {
     if (isTimestamp(col, i)) return;
-    const label = (col.label || `Otázka ${i}`).trim();
+    const label = (col.label || "").trim();
     if (!label) return;
-    const answers = rows.map((r) => cellValue(r.c?.[i])).filter((v) => v !== "");
+    const m = label.match(/^(.*\S)\s*\[([^\]]+)\]\s*$/);
+    const last = groups[groups.length - 1];
+    if (m && last && last.base === m[1]) last.items.push({ i, row: m[2] });
+    else if (m) groups.push({ base: m[1], items: [{ i, row: m[2], label }] });
+    else groups.push({ base: null, items: [{ i, label }] });
+  });
 
-    const single = count(answers);
-    // Zaškrtávacie políčka: Google ich ukladá ako "A, B, C".
-    // Za checkbox považujeme stĺpec, kde sa vyskytujú aspoň 2 rôzne kombinácie s čiarkou,
-    // alebo časť kombinácie existuje aj ako samostatná odpoveď.
-    const combos = [...single.keys()].filter((k) => k.includes(", "));
-    const tokens = (a) => a.split(", ").map((s) => s.trim()).filter(Boolean);
-    const looksMulti = combos.length >= 2 || combos.some((c) => tokens(c).some((t) => single.has(t)));
-    if (looksMulti) {
-      const split = count(answers.flatMap(tokens));
-      if (split.size <= MAX_CHOICES + 3) {
-        questions.push({ title: label, type: "multi", answered: answers.length, options: sortOptions(split) });
-        return;
-      }
-    }
-    if (single.size <= MAX_CHOICES) {
-      questions.push({ title: label, type: "choice", answered: answers.length, options: sortOptions(single) });
+  const questions = [];
+  groups.forEach((g) => {
+    const colAnswers = (i) => rows.map((r) => cellValue(r.c?.[i])).filter((v) => v !== "");
+    if (g.base && g.items.length >= 2) {
+      const values = g.items.flatMap((it) => colAnswers(it.i));
+      const isRanking = values.length === 0 || values.every((v) => rankOf(v) !== null && rankOf(v) <= 20);
+      if (isRanking) { questions.push(analyzeRanking(g.base, g.items, rows)); return; }
+      // Iná mriežka (napr. hodnotenie viacerých vecí) – každý riadok ako samostatný graf
+      g.items.forEach((it) => questions.push(analyzeColumn(`${g.base} – ${it.row}`, colAnswers(it.i))));
       return;
     }
-    questions.push({
-      title: label,
-      type: "text",
-      answered: answers.length,
-      answers: answers.slice(-MAX_TEXT_SHOWN).reverse(),
-    });
+    const it = g.items[0];
+    questions.push(analyzeColumn(it.label || `${g.base} [${it.row}]`, colAnswers(it.i)));
   });
   return questions;
 }
@@ -94,7 +131,8 @@ function demoData() {
     questions: [
       { title: "Ako sa vám páčila prednáška? (ukážka)", type: "choice", answered: n, options: pick(["5", "4", "3", "2", "1"]).sort((a, b) => Number(a.label) - Number(b.label)) },
       { title: "Používate AI pri učení? (ukážka)", type: "choice", answered: n, options: pick(["Denne", "Raz za týždeň", "Občas", "Nikdy"]) },
-      { title: "Ktorý AI nástroj používate najčastejšie? (ukážka)", type: "choice", answered: n, podium: true, options: pick(["ChatGPT", "Claude", "Gemini", "Copilot", "Perplexity"]) },
+      { title: "Ktorý AI nástroj používate najčastejšie? (ukážka)", type: "ranking", answered: n, podium: true,
+        options: pick(["ChatGPT", "Claude", "Gemini", "Copilot", "Grok"]).map((o, i) => ({ ...o, count: o.count * 2, firsts: Math.max(0, 9 - i * 3) })) },
       { title: "Ktoré AI nástroje používate? (ukážka)", type: "multi", answered: n, options: pick(["ChatGPT", "Claude", "Gemini", "Copilot", "Iné"]) },
       { title: "Čo si odnášate? (ukážka)", type: "text", answered: 3, answers: ["Že AI nie je strašiak", "Veľa praktických tipov", "Chcem skúsiť vlastného agenta"] },
     ],
